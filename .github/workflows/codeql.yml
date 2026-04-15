@@ -1,0 +1,78 @@
+# GitHub Actions — CodeQL Analysis Workflow
+# This workflow runs GitHub Advanced Security (GHAS) CodeQL scanning
+# on every push and pull request, making security alerts available
+# to the AI Story Review Agent via the /code-scanning/alerts API.
+
+name: "CodeQL Security Analysis"
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+  schedule:
+    # Run a full scan every Monday at 08:00 UTC
+    - cron: "0 8 * * 1"
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    permissions:
+      # Required for CodeQL to upload results to GitHub Security tab
+      security-events: write
+      # Required to fetch the repository contents
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # CodeQL supports: c-cpp, csharp, go, java-kotlin, javascript-typescript, python, ruby, swift
+        language: [ "javascript-typescript" ]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # Use the security-and-quality query suite for maximum coverage.
+          # This enables rules that will detect the SQL injection in userService.js
+          # and the hardcoded secret in authService.js.
+          queries: security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"
+
+  # ─── Run tests and upload coverage ──────────────────────────────────────────
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests with coverage
+        run: npm test
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
