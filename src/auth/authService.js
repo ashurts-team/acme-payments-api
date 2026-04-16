@@ -10,7 +10,6 @@
  *  - TODO comment
  */
 
-// Adding a comment to test the pull requests.
 
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
